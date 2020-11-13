@@ -1,0 +1,63 @@
+programa = { "Program" ~ id ~";" ~ comment? ~ vars? ~ funciones* }
+
+/// Literales
+id = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | "_" | '0'..'9' )* }
+int = @{ "-"? ~ ("0" | '1'..'9' ~ '0'..'9'*) }
+float = @{ "-"? ~ ("0" ~ "." ~ '0'..'9'+ | '1'..'9' ~ '0'..'9'* ~ "." ~ '0'..'9'+ ) }
+chars = _{ 'a'..'z' | 'A'..'Z' }
+comment = { "%%" ~ (!"%%" ~ANY)* ~ "%%" }
+
+vars = { "var" ~ vars_a+ }
+vars_a = _{ vars_b+ ~ comment? }
+vars_b = _{ tipo ~ ":" ~ id ~ ("," ~ id)* ~ ";" }
+
+tipo = { "int" | "float" | "char" }
+
+tipo_retorno = { "void" | "int" | "float" | "char" }
+
+args = { arg ~ ("," ~ arg)* }
+arg = { tipo ~ id }
+funciones = { tipo_retorno ~ "module" ~ id ~ "(" ~ args? ~ ")" ~ "{" ~ comment? ~  vars? ~ "{" ~ estatuto* ~ "}" ~ "}" }
+
+estatuto = { asignacion | retorno | lectura | decision | condicion | no_condicion | escritura | llamada }
+
+asignacion = { id ~ "=" ~ expresion ~ ";" ~ comment? }
+
+call_args = { expresion ~ ("," ~ expresion)* }
+llamada = { id ~ "(" ~ call_args? ~ ")"~";" ~ comment? }
+
+retorno = { "return" ~ "(" ~ expresion ~ ")" ~ ";" ~ comment? }
+
+lectura = { "read" ~ "(" ~ id ~ ("," ~ id)* ~ ")" ~ ";" ~ comment? }
+
+escritura = { "write" ~ "(" ~ (expresion | string) ~ ("," ~ (expresion | string) )* ~ ")" ~ ";" ~comment? }
+
+string = { string_quotes ~ (!(string_quotes) ~ ANY)* ~ string_quotes }
+string_quotes = _{ "\"" }
+decision = { "if" ~ "(" ~ expresion ~ ")" ~ "then" ~ comment? ~ "{" ~ estatuto* ~ "}" ~ elseIf? }
+elseIf = { "else" ~ "{" ~ estatuto* ~ "}" }
+
+condicion = { "while" ~ "(" ~ expresion ~ ")" ~ "do" ~ comment? ~ "{" ~ estatuto* ~ "}" }
+
+no_condicion = { "for" ~ "(" ~ id ~ "=" ~ expresion ~ ")" ~ "to" ~ "(" ~ expresion ~ ")" ~ "do" ~ comment? ~ "{" ~ estatuto* ~ "}"}
+
+expresion = { exp_comp ~ (cond ~ exp_comp)? }
+cond = { "&" | "|" }
+
+exp_comp = { exp ~ (comp ~ exp)? }
+comp = { "<=" | ">=" | ">" | "<" | "==" | "<>" }
+
+exp = { termino ~ (op ~ exp)? }
+op = { "+" | "-" }
+
+termino = { factor ~ (fact_op ~ termino)? }
+fact_op = { "*" | "/" }
+factor = {  llamada_op | "(" ~ expresion ~ ")" | var_cte } // TODO: manejar positivos y negativos
+llamada_op = { id ~ "(" ~ arg_op? ~ ")" }
+arg_op = { expresion ~ ("," ~ expresion)* }
+
+var_cte = { float | int | id }
+
+WHITESPACE = _{ " " | NEWLINE }
+
+file = { SOI ~ programa ~ EOI }

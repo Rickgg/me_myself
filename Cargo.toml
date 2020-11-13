@@ -1,0 +1,17 @@
+[package]
+name = "me_myself"
+version = "0.1.0"
+authors = ["Rick <garzag.rick@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pest = "2.0"
+pest_derive = "2.0"
+env_logger = "0.8.1"
+log = "0.4"
+
+[[bin]]
+name = "me_myself"
+path = "src/main.rs"

@@ -1,0 +1,23 @@
+Program var_test;
+var int: H;
+float: G;
+
+int module fact(int n) {
+    var int: A, B;
+    {
+        write(n);
+        if (n == 1) then {
+            return(1);
+        } else {
+            return(n * (fact(n - 1)));
+        }
+    }
+}
+
+void module main() {
+    var int: A, B, C;
+    {
+        A = fact(5);
+        write(A);
+    }
+}

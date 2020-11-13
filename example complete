@@ -1,0 +1,21 @@
+Program var_test;
+var int: id1, id2;
+float: d3;
+
+
+int module fact (a);
+    var int: id1, id2;
+    float: d3;
+    {
+        return(1 + 3 * das(a, b));
+        return(123);
+        read(a, b, c);
+        write("hello", "world", 1 + das(a, b) - sd & 4);
+        if (4) then {
+            read(a);
+        } else {
+            write("false");
+        }
+        while ((a < 3) & (d > 9 + d)) do {}
+        for a = 0 to 10 do {}
+    }

@@ -1,0 +1,10 @@
+Program var_test;
+var int: H;
+float: G;
+
+void module main() {
+    var int: A, B, C; float: D;
+    {
+        Forward(D);
+    }
+}

@@ -1,0 +1,22 @@
+Program var_test;
+var int: H;
+float: G;
+
+int module fib(int n) {
+    var int: A, B;
+    {
+        if (n <= 1) then {
+            return(n);
+        } else {
+            return(fib(n - 1) + fib(n - 2););
+        }
+    }
+}
+
+void module main() {
+    var int: A, B, C;
+    {
+        A = fib(10);
+        write(A);
+    }
+}
