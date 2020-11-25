@@ -784,8 +784,8 @@ impl VM {
                 }
                 "Color" => {
                     let red = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
-                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
-                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
+                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
                     match (red, blue, green) {
                         (VarValue::Float(red), VarValue::Float(blue), VarValue::Float(green)) => {
                             turtle.set_pen_color(turtle::Color::rgb(red, green, blue));
@@ -796,8 +796,8 @@ impl VM {
                 }
                 "BackgroundColor" => {
                     let red = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
-                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
-                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
+                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
                     match (red, blue, green) {
                         (VarValue::Float(red), VarValue::Float(blue), VarValue::Float(green)) => {
                             turtle.drawing_mut().set_background_color(turtle::Color::rgb(red, green, blue));
