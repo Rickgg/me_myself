@@ -1,0 +1,63 @@
+Program Squares2;
+var float: R, G, B, GenPos;
+
+void module wheel() {
+    var float: pos;
+    {
+        pos = 255 - GenPos;
+        if (pos < 85) then {
+            R = 255 - pos * 3;
+            G = 0;
+            B = pos * 3;
+            return();
+        } else {
+            if (pos < 170) then{
+                pos = pos - 85;
+                R = 0;
+                G = pos * 3;
+                B = 255 - pos * 3;
+                return();
+            } else {
+                pos = pos - 170;
+                R = pos * 3;
+                G = 255 - pos * 3;
+                B = 0;
+            }
+        }
+    }
+}
+
+void module square() {
+    var float:i;
+    {
+        i = 0;
+
+        FillColor(R, G, B);
+        StartFill();
+        while (i < 4) do {
+            Forward(200.0);
+            Right(90.0);
+            i = i + 1;
+        }
+        EndFill();
+    }
+}
+
+void module main() {
+    var float: i;
+    {
+        i = 0;
+        GenPos = 0.0;
+        while(i < 36) do {
+            GenPos = GenPos + 7.0;
+            if (GenPos > 255.0) then {
+                GenPos = 0.0;
+            }
+            wheel();
+            Color(R, G, B);
+            square();
+            Right(10.0);
+            i = i + 1;
+        }
+    }
+}

@@ -52,6 +52,7 @@ enum Actions {
     Sub, // Done
     Mult, // Done
     Div, // Done
+    Mod, // Done
     MoreThan, // Done
     LessThan, // Done
     MoreOrEqualThan, // Done
@@ -66,26 +67,30 @@ enum Actions {
     GotoF, // Done
     Goto, // Done
     Era, // Done
-    EndFunc,
+    EndFunc, // Done
+    EndFuncS, // Done
     Assign, // Done
-    Gosub,
-    Param,
-    Return,
-    // MISSING IMPLEMENTATION
-    Center,
-    Forward,
-    Backward,
-    Left,
-    Right,
-    Point,
-    Circle,
-    Arc,
-    PenUp,
-    PenDown,
-    Color,
-    Size,
-    Clear,
-    // MAYBE?
+    Gosub, // Done
+    Param, // Done
+    Return, // Done
+    Center, // Done
+    Forward, // Done
+    Backward, // Done
+    Left, // Done
+    Right, // Done
+    // Point, CANT BE DONE
+    // Circle, CANT BE DONE
+    // Arc, CANT BE DONE
+    PenUp, // Done
+    PenDown, // Done
+    Color, // Done
+    Size, // Done
+    Clear, // Done
+    Position, // x, y // Done
+    BackgroundColor, // Done
+    FillColor, // Done
+    StartFill, // Done
+    EndFill, // Done
 }
 
 // #[derive(Debug)]
@@ -125,7 +130,8 @@ fn semantic_cube(action: Actions, l_op: &Option<Var>, r_op: &Option<Var>) -> Res
         Actions::Sum | 
         Actions::Sub | 
         Actions::Mult | 
-        Actions::Div => {
+        Actions::Div |
+        Actions::Mod => {
             if l_op == VarType::Int && r_op == VarType::Int { Ok(VarType::Int) }
             else if l_op == VarType::Float && r_op == VarType::Int || 
             l_op == VarType::Int && r_op == VarType::Float || 
@@ -140,6 +146,7 @@ fn semantic_cube(action: Actions, l_op: &Option<Var>, r_op: &Option<Var>) -> Res
             if l_op == VarType::Int && r_op == VarType::Int { Ok(VarType::Int)}
             else if l_op == VarType::Float && r_op == VarType::Float ||
                 l_op == VarType::Float && r_op == VarType::Int { Ok(VarType::Float)}
+            else if l_op == VarType::Char && r_op == VarType::Char { Ok(VarType::Char) }
             else {
                 return Err(format!("Incompatible types: {:?} and {:?}, {:?}", l_op, r_op, action));
             }
@@ -153,7 +160,9 @@ fn semantic_cube(action: Actions, l_op: &Option<Var>, r_op: &Option<Var>) -> Res
             if l_op == VarType::Int && r_op == VarType::Int ||
             l_op == VarType::Float && r_op == VarType::Float ||
             l_op == VarType::Int && r_op == VarType::Float ||
-            l_op == VarType::Float && r_op == VarType::Int{
+            l_op == VarType::Float && r_op == VarType::Int || 
+            l_op == VarType::Char && r_op == VarType::Char && (action == Actions::Equal || action == Actions::NotEqual)
+            {
                 Ok(VarType::Bool)
             } else {
                 return Err(format!("Incompatible types: {:?} and {:?}, {:?}", l_op, r_op, action));
@@ -179,6 +188,7 @@ struct Constant {
 
 #[derive(Default)]
 pub struct MMCompiler {
+    program_name: String,
     op_vec: Vec<Var>,
     oper_vec: Vec<Actions>,
     jump_vec: Vec<usize>,
@@ -204,19 +214,21 @@ impl MMCompiler {
         new_comp.special_functions.insert("Backward".to_string(), vec![VarType::Float]);
         new_comp.special_functions.insert("Left".to_string(), vec![VarType::Float]);
         new_comp.special_functions.insert("Right".to_string(), vec![VarType::Float]);
-        // new_comp.special_functions.insert("Point".to_string(), vec![VarType::Float]);
-        new_comp.special_functions.insert("Circle".to_string(), vec![VarType::Float]);
-        new_comp.special_functions.insert("Arc".to_string(), vec![VarType::Float]);
         new_comp.special_functions.insert("PenUp".to_string(), vec![]);
         new_comp.special_functions.insert("PenDown".to_string(), vec![]);
         new_comp.special_functions.insert("Color".to_string(), vec![VarType::Float, VarType::Float, VarType::Float]);
         new_comp.special_functions.insert("Size".to_string(), vec![VarType::Float]);
         new_comp.special_functions.insert("Clear".to_string(), vec![]);
-
+        new_comp.special_functions.insert("Position".to_string(), vec![VarType::Float, VarType::Float]);
+        new_comp.special_functions.insert("BackgroundColor".to_string(), vec![VarType::Float, VarType::Float, VarType::Float]);
+        new_comp.special_functions.insert("FillColor".to_string(), vec![VarType::Float, VarType::Float, VarType::Float]);
+        new_comp.special_functions.insert("StartFill".to_string(), vec![]);
+        new_comp.special_functions.insert("EndFill".to_string(), vec![]);
 
         new_comp
     }
 
+    // Generates a quadruple and inserts it into quadruples vector
     fn gen_quad (&mut self, action: Actions, lh_op: Option<Var>, rh_op: Option<Var>, out_op: Var) {
         let new_quad = Quadruple {
             op: action,
@@ -227,6 +239,7 @@ impl MMCompiler {
         self.quadruples.push(new_quad);
     }
 
+    // Fills a pending goto when creating conditionals
     fn fill_goto(&mut self, pos: usize) {
         let jump_pos = self.jump_vec.pop().unwrap();
         if let Some(quad) = self.quadruples.get_mut(jump_pos) {
@@ -234,6 +247,7 @@ impl MMCompiler {
         }
     }
 
+    // Finds a variable in local or global contexts.
     fn find_var(&self, var_name: &str) -> Result<Var, String> {
         // Get var from var_table and compare types
         let curr_fun = self.function_table.get(self.current_func.as_str()).unwrap();
@@ -246,17 +260,21 @@ impl MMCompiler {
         }
     }
 
+    // Creates the variables necessary for global and local contexts
     fn process_vars(&mut self, data: pest::iterators::Pair<Rule>, scope_global: bool) -> Result<VarHash, String> {
         let mut current_tipo: &str = "";
         let mut var_map: VarHash = HashMap::new();
 
         for var in data.into_inner() {
             match var.as_rule() {
+                // Set current variable type
                 Rule::tipo => {
                     current_tipo = var.as_str();
                 }
+                // Create each necessary variable
                 Rule::id => {
                     let value = match current_tipo {
+                        // Create new int variable, return location
                         "int" => { 
                             let new_loc = if scope_global {
                                 let new_loc = BaseDirs::GlobalInt as i32 + self.global_locs.0;
@@ -271,6 +289,7 @@ impl MMCompiler {
 
                             (VarType::Int, new_loc)
                         }
+                        // Create new float variable, return location
                         "float" =>  {
                             let new_loc = if scope_global {
                                 let new_loc = BaseDirs::GlobalFloat as i32 + self.global_locs.1;
@@ -285,6 +304,7 @@ impl MMCompiler {
 
                             (VarType::Float, new_loc)
                         },
+                        // Create new int variable, return location
                         "char" => {
                             let new_loc = if scope_global {
                                 let new_loc = BaseDirs::GlobalChar as i32 + self.global_locs.2;
@@ -302,6 +322,7 @@ impl MMCompiler {
                         _ => { unreachable!() }
                     };
 
+                    // Insert new variable into local or global variable maps
                     match var_map.entry(var.as_str().to_string()) {
                         Vacant(entry) => { entry.insert(Var { Location: value.1.to_string(), Type: value.0 }); }
                         Occupied(_) => return Err(format!("Variable {} has already been declared", var.as_str()))
@@ -318,6 +339,7 @@ impl MMCompiler {
         // println!("Factor {}", data.as_str());
         for field in data.into_inner(){
             match field.as_rule() {
+                // Process call to function
                 Rule::llamada_op => {
                     // Add "parenthesis" to give more precedence to functions :D
                     self.oper_vec.push(Actions::ParentStart);
@@ -332,8 +354,10 @@ impl MMCompiler {
 
                     let param_list = self.function_table.get(func_name).unwrap().param_list.clone();
 
+                    // Gen ERA quadruple
                     self.gen_quad(Actions::Era, None, None, Var { Location: func_name.to_string(), Type: VarType::Void });
 
+                    // PRocess arguments of function call
                     if let Some(args) = llamada_fields.next() {
                         let mut param_count = 0;
                         for (i, arg) in args.into_inner().enumerate() {
@@ -342,7 +366,7 @@ impl MMCompiler {
                             let param = self.op_vec.pop().unwrap().clone();
 
                             if i >= param_list.len() {
-                                return Err(format!("Wrong number of arguments. Expected: {}. Got: {}", param_list.len(), param_count + 1));
+                                return Err(format!("Wrong number of arguments in function {}. Expected: {}. Got: {}", func_name, param_list.len(), param_count + 1));
                             }
 
                             if param_list[i] != param.Type {
@@ -353,10 +377,11 @@ impl MMCompiler {
                             param_count += 1;
                         }
                         if param_count < param_list.len() {
-                            return Err(format!("Wrong number of arguments. Expected: {}. Got: {}", param_list.len(), param_count));
+                            return Err(format!("Wrong number of arguments in function {}. Expected: {}. Got: {}", func_name, param_list.len(), param_count));
                         }
                     }
 
+                    // Gen GoSub quadruple
                     self.gen_quad(Actions::Gosub, None, None, Var { Location: func_name.to_string(), Type: VarType::Void });
 
                     // Left hand: global function location, out: temporal
@@ -366,6 +391,7 @@ impl MMCompiler {
 
                     let current_func = self.function_table.get_mut(&self.current_func).unwrap();
 
+                    // Get temporal location to save return value from function
                     let temp_loc = match calling_func_type {
                             VarType::Int => {
                                 let new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.0; 
@@ -378,7 +404,7 @@ impl MMCompiler {
                                 new_loc }
                             VarType::Char => { 
                                 let new_loc = BaseDirs::TempChar as i32 + current_func.temp_vars.2; 
-                                current_func.temp_vars.0 += 2;
+                                current_func.temp_vars.2 += 2;
                                 new_loc 
                             }
                             _ => { unreachable!() }
@@ -392,11 +418,13 @@ impl MMCompiler {
 
                     self.oper_vec.pop();
                 },
+                // Process expresion
                 Rule::expresion => {
                     self.oper_vec.push(Actions::ParentStart);
                     self.process_expresion(field)?;
                     self.oper_vec.pop();
                 },
+                // Add new constant variable
                 Rule::var_cte => {
                     let cte = field.into_inner().next().unwrap();
                     // here get type as_rule
@@ -405,22 +433,27 @@ impl MMCompiler {
                             let var_data = self.find_var(cte.as_str())?;
                             (var_data.Type, var_data.Location)
                         }
-                        Rule::float => {
-                            let const_loc = BaseDirs::CteFloat as i32 + self.cte_locs.0;
+                        Rule::int => {
+                            let const_loc = BaseDirs::CteInt as i32 + self.cte_locs.0;
                             self.cte_locs.0 += 1;
-                            self.constants.push(Constant { Location: const_loc.to_string(),Value: cte.as_str().to_string(), Type: VarType::Float});
+                            self.constants.push(Constant { Location: const_loc.to_string(),Value: cte.as_str().to_string(), Type: VarType::Int});
+                            (VarType::Int, const_loc.to_string())
+                        }
+                        Rule::float => {
+                            let const_loc = BaseDirs::CteFloat as i32 + self.cte_locs.1;
+                            self.cte_locs.1 += 1;
+                            self.constants.push(Constant { Location: const_loc.to_string(), Value: cte.as_str().to_string(), Type: VarType::Float});
                             (VarType::Float, const_loc.to_string())
                         }
-                        Rule::int => {
-                            let const_loc = BaseDirs::CteInt as i32 + self.cte_locs.1;
-                            self.cte_locs.1 += 1;
-                            self.constants.push(Constant { Location: const_loc.to_string(), Value: cte.as_str().to_string(), Type: VarType::Int});
-                            (VarType::Int, const_loc.to_string())
+                        Rule::chars => {
+                            let const_loc = BaseDirs::CteChar as i32 + self.cte_locs.2;
+                            self.cte_locs.2 += 1;
+                            self.constants.push(Constant { Location: const_loc.to_string(), Value: cte.as_str().to_string().chars().nth(1).unwrap().to_string(), Type: VarType::Char });
+                            (VarType::Char, const_loc.to_string())
                         }
                         _=> { unreachable!() }
                     };
                     self.op_vec.push(Var { Type: new_cte.0, Location: new_cte.1 });
-                    // println!("{:?} {:?}", cte.as_rule(), cte.as_str());
                 }
                 _=>{}
             }
@@ -428,15 +461,14 @@ impl MMCompiler {
         Ok(())
     }
 
+    // Process multiplication, division and modulo
     fn process_termino(&mut self, data: pest::iterators::Pair<Rule>) -> Result<(), String> {
-        // println!("Termino {}", data.as_str());
-
         for field in data.into_inner() {
             match field.as_rule() {
                 Rule::factor => {
                     self.process_factor(field)?;
                     if let Some(val) = self.oper_vec.last().cloned() {
-                        if val == Actions::Mult || val == Actions::Div {
+                        if val == Actions::Mult || val == Actions::Div || val == Actions::Mod {
                             self.oper_vec.pop();
                             let rh_op = self.op_vec.pop();
                             let lh_op = self.op_vec.pop();
@@ -450,8 +482,7 @@ impl MMCompiler {
                                 VarType::Int => {
                                     let new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.0; 
                                     current_func.temp_vars.0 += 1; 
-                                    new_loc 
-                                }
+                                    new_loc }
                                 VarType::Float => { 
                                     let new_loc = BaseDirs::TempFloat as i32 + current_func.temp_vars.1; 
                                     current_func.temp_vars.1 += 1; 
@@ -472,6 +503,7 @@ impl MMCompiler {
                     match field.as_str() {
                         "*" => self.oper_vec.push(Actions::Mult),
                         "/" => self.oper_vec.push(Actions::Div),
+                        "%" => self.oper_vec.push(Actions::Mod),
                         &_ => {}
                     };
                 }
@@ -484,8 +516,8 @@ impl MMCompiler {
         Ok(())
     }
 
+    // Process sum and subtract
     fn process_exp(&mut self, data: pest::iterators::Pair<Rule>) -> Result<(), String> {
-        // println!("Exp {}", data.as_str());
         for field in data.into_inner() {
             match field.as_rule() {
                 Rule::termino => { 
@@ -508,11 +540,11 @@ impl MMCompiler {
                                     new_loc 
                                 }
                                 VarType::Float => { 
-                                    let new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.1; 
+                                    let new_loc = BaseDirs::TempFloat as i32 + current_func.temp_vars.1; 
                                     current_func.temp_vars.1 += 1; 
                                     new_loc }
                                 VarType::Char => { 
-                                    let new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.2; 
+                                    let new_loc = BaseDirs::TempFloat as i32 + current_func.temp_vars.2; 
                                     current_func.temp_vars.0 += 2;
                                     new_loc }
                                 _ => { unreachable!() }
@@ -538,8 +570,8 @@ impl MMCompiler {
         Ok(())
     }
 
+    // Process comparison
     fn process_exp_comp(&mut self, data: pest::iterators::Pair<Rule>) -> Result<(), String> {
-
         for field in data.into_inner() {
             match field.as_rule() {
                 Rule::exp => {
@@ -581,6 +613,7 @@ impl MMCompiler {
         Ok(())
     }
 
+    // Process Boolean expresion
     fn process_expresion(&mut self, data: pest::iterators::Pair<Rule>) -> Result<(), String> {    
 
         for field in data.into_inner() {
@@ -609,7 +642,7 @@ impl MMCompiler {
                 Rule::cond => {
                     match field.as_str() {
                         "&" => self.oper_vec.push(Actions::And),
-                        "||" => self.oper_vec.push(Actions::Or),
+                        "|" => self.oper_vec.push(Actions::Or),
                         &_ => {}
                     }
                 }
@@ -619,6 +652,7 @@ impl MMCompiler {
         Ok(())
     }
 
+    // Process statutes
     fn process_statute(&mut self, data: pest::iterators::Pair<Rule>) -> Result<(), String> {
         let mut fields = data.into_inner();
         
@@ -638,16 +672,19 @@ impl MMCompiler {
             },
             Rule::retorno => {
                 let mut return_fields = estatuto.into_inner();
-                let expresion = return_fields.next().unwrap();
+                if let Some(expresion) = return_fields.next() {
 
-                self.process_expresion(expresion)?;
-                let out_op = self.op_vec.pop().unwrap();
-                let func: &Func = self.function_table.get(self.current_func.as_str()).unwrap();
-                let return_loc = self.global_vars.get(self.current_func.as_str()).unwrap();
-                if func.ret_type != out_op.Type {
-                    return Err("Return types are different.".to_string());
+                    self.process_expresion(expresion)?;
+                    let out_op = self.op_vec.pop().unwrap();
+                    let func: &Func = self.function_table.get(self.current_func.as_str()).unwrap();
+                    let return_loc = self.global_vars.get(self.current_func.as_str()).unwrap();
+                    if func.ret_type != out_op.Type {
+                        return Err("Return types are different.".to_string());
+                    }
+                    self.gen_quad(Actions::Return, Some(out_op), None, return_loc.clone());
                 }
-                self.gen_quad(Actions::Return, Some(out_op), None, return_loc.clone());
+
+                self.gen_quad(Actions::EndFunc, None, None, Var { Location: String::from(""), Type: VarType::Void });
             },
             Rule::lectura => {
                 let read_fields = estatuto.into_inner();
@@ -718,73 +755,77 @@ impl MMCompiler {
                 }
             },
             Rule::no_condicion => { // For
-                // let mut no_condicion_fields = estatuto.into_inner();
+                let mut no_condicion_fields = estatuto.into_inner();
 
-                // let control_var = no_condicion_fields.next().unwrap();
-                // let control_exp = no_condicion_fields.next().unwrap();
-
-                // let mut current_func = self.function_table.get_mut(self.current_func.as_str()).unwrap();
-                // let new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.0;
-                // current_func.temp_vars.0 += 1;
-
-                // let VC = Var {Location: new_loc.to_string(), Type: VarType::Int};
-
-                // new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.0;
-                // current_func.temp_vars.0 += 1;
-
-                // let VF = Var {Location: new_loc.to_string(), Type: VarType::Int};
-
-                // {
-                //     self.process_expresion(control_exp)?;
-                // }
-
-                // let lh_op = self.op_vec.pop();
-                // let control_var = self.find_var(control_var.as_str()).unwrap();
-                // self.gen_quad(Actions::Assign, lh_op, None, control_var);
-
-                // // Generate quad for control variable
-                // let last_op = self.quadruples.last().unwrap().out_op.clone();
-                // if !(last_op.Type == VarType::Int) {
-                //     return Err(String::from("Variable control debe ser numerica para generar For"))
-                // }
-                // self.gen_quad(Actions::Assign, Some(last_op), None, VC);
-
-                // let final_exp = no_condicion_fields.next().unwrap();
-
-                // self.process_expresion(final_exp)?;
-
-                // // Generate quad for final variable
-                // let last_op = self.op_vec.pop().unwrap();
-                // if last_op.Type != VarType::Int && last_op.Type != VarType::Float {
-                //     return Err(String::from("Variable final debe ser numerica para generar For"))
-                // }
-                // self.gen_quad(Actions::Assign, Some(last_op), None, VF);
-
-                // new_loc = BaseDirs::TempInt as i32 + current_func.temp_vars.0;
-                // current_func.temp_vars.0 += 1;
-                // let compare_var = Var { Location: new_loc.to_string(), Type: VarType::Int };
-
-                // self.gen_quad(Actions::LessThan, Some(VC), Some(VF), compare_var);
-                // let goto_start = self.quadruples.len() - 1;
-
-                // let lh_op = self.op_vec.pop();
-                // self.gen_quad(Actions::GotoF, lh_op, None, Var { Location: String::from(""), Type: VarType::Int });
-                // self.jump_vec.push(self.quadruples.len() - 1);
-
-                // // Process statutes inside for
-                // for field in no_condicion_fields {
-                //     self.process_statute(field)?;
-                // }
-
-                // self.gen_quad(Actions::Sum, Some(VF.clone()), Some(Var { Location: String::from("1"), Type: VarType::Int }), VC);
-
-                // // Generate quad for control variable
-                // self.gen_quad(Actions::Assign, Some(VC.clone()), None, control_var);
+                let control_var = no_condicion_fields.next().unwrap();
+                let control_exp = no_condicion_fields.next().unwrap();
+            
+                self.process_expresion(control_exp)?;
                 
-                // // // Generate quad for final GOTO
-                // self.gen_quad(Actions::Goto, None,None, Var { Location: goto_start.to_string(), Type: VarType::Int });
+                let lh_op = self.op_vec.pop();
+                let control_var: Var = self.find_var(control_var.as_str()).unwrap();
+                if control_var.Type != VarType::Int && control_var.Type != VarType::Float {
+                    return Err(String::from("Variable inicial debe ser numerica para generar For"))
+                }
+                self.gen_quad(Actions::Assign, lh_op, None, control_var.clone());
 
-                // self.fill_goto(self.quadruples.len());
+                let mut current_func = self.function_table.get_mut(self.current_func.as_str()).unwrap();
+
+                let (VC, VF, temp_comp): (Var, Var, Var) = match control_var.Type {
+                    VarType::Int => {
+                        let new_loc = BaseDirs::LocalInt as i32 + current_func.local_vars.0;
+                        let new_loc2 = BaseDirs::LocalInt as i32 + current_func.local_vars.0 + 1;
+                        let new_loc3 = BaseDirs::LocalInt as i32 + current_func.local_vars.0 + 2;
+                        current_func.local_vars.0 += 3;
+                        let VC = Var { Location: new_loc.to_string(), Type: VarType::Int };
+                        let VF = Var { Location: new_loc2.to_string(), Type: VarType::Int };
+                        let temp_comp = Var { Location: new_loc3.to_string(), Type: VarType::Int };
+                        (VC, VF, temp_comp)
+
+                    }
+                    VarType::Float => {
+                        let new_loc = BaseDirs::LocalFloat as i32 + current_func.local_vars.1;
+                        let new_loc2 = BaseDirs::LocalFloat as i32 + current_func.local_vars.1 + 1;
+                        let new_loc3 = BaseDirs::LocalFloat as i32 + current_func.local_vars.1 + 2;
+                        current_func.local_vars.1 += 3;
+                        let VC = Var { Location: new_loc.to_string(), Type: VarType::Float };
+                        let VF = Var { Location: new_loc2.to_string(), Type: VarType::Float };
+                        let temp_comp = Var { Location: new_loc3.to_string(), Type: VarType::Float };
+                        (VC, VF, temp_comp)
+                    }
+                    _ => unreachable!()
+                };
+
+                self.gen_quad(Actions::Assign, Some(control_var.clone()), None, VC.clone());
+
+                let cond_expr = no_condicion_fields.next().unwrap();
+
+                self.process_expresion(cond_expr)?;
+
+                let cond_op = self.op_vec.pop();
+
+                self.gen_quad(Actions::Assign, cond_op, None, VF.clone());
+
+                let comp_position = self.quadruples.len();
+                self.gen_quad(Actions::LessThan, Some(VC.clone()), Some(VF.clone()), temp_comp.clone());
+
+
+                self.jump_vec.push(self.quadruples.len());
+                self.gen_quad(Actions::GotoF, Some(temp_comp.clone()), None, Var { Location: "".to_string(), Type: VarType::Void });
+
+                for estatute in no_condicion_fields.into_iter() {
+                    self.process_statute(estatute)?;
+                }
+
+                let const_loc = BaseDirs::CteInt as i32 + self.cte_locs.0;
+                self.cte_locs.0 += 1;
+                self.constants.push(Constant { Location: const_loc.to_string(), Value: 1.to_string(), Type: VarType::Int });
+
+                self.gen_quad(Actions::Sum, Some(VC.clone()), Some(Var{ Location: const_loc.to_string(), Type: VarType::Int }), VC.clone());
+
+                self.gen_quad(Actions::Assign, Some(VC.clone()), None, control_var);
+                self.gen_quad(Actions::Goto, None, None, Var { Location: comp_position.to_string(), Type: VarType::Void });
+                self.fill_goto(self.quadruples.len());
             },
             Rule::escritura => {
                 let write_fields = estatuto.into_inner();
@@ -816,12 +857,12 @@ impl MMCompiler {
                 } else if let Some(param_list) = self.special_functions.get(func_name.as_str()) {
                     params = param_list.clone();
                     is_special = true;
+                } else {
+                    return Err(format!("Unknown function {}", func_name).to_string());
                 }
 
-                if !is_special {
-                    // en vm crear una segunda memoria
-                    self.gen_quad(Actions::Era, None, None, Var { Location: func_name.clone(), Type: VarType::Void });
-                }
+                // en vm crear una segunda memoria
+                self.gen_quad(Actions::Era, None, None, Var { Location: func_name.clone(), Type: VarType::Void });
 
                 let mut param_count = 0;
                 if let Some(args) = llamada_fields.next() {
@@ -831,7 +872,7 @@ impl MMCompiler {
                         let param = self.op_vec.pop().unwrap().clone();
 
                         if i >= params.len() {
-                            return Err(format!("Wrong number of arguments. Expected: {}. Got: {}", params.len(), param_count + 1));
+                            return Err(format!("Wrong number of arguments {}. Expected: {}. Got: {}", func_name, params.len(), param_count + 1));
                         }
 
                         if params[i] != param.Type {
@@ -842,10 +883,10 @@ impl MMCompiler {
                         param_count += 1;
                     }
                     if param_count < params.len() {
-                        return Err(format!("Wrong number of arguments. Expected: {}. Got: {}", params.len(), param_count));
+                        return Err(format!("Wrong number of arguments {}. Expected: {}. Got: {}", func_name, params.len(), param_count));
                     }
                 } else if param_count != params.len() {
-                    return Err(format!("Wrong number of arguments. Expected: {}. Got: {}", params.len(), param_count));
+                    return Err(format!("Wrong number of arguments {}. Expected: {}. Got: {}", func_name, params.len(), param_count));
                 }
 
                 if !is_special {
@@ -857,16 +898,21 @@ impl MMCompiler {
                         "Backward" => self.gen_quad(Actions::Backward, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "Left" => self.gen_quad(Actions::Left, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "Right" => self.gen_quad(Actions::Right, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
-                        "Point" => self.gen_quad(Actions::Point, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
-                        "Circle" => self.gen_quad(Actions::Circle, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
-                        "Arc" => self.gen_quad(Actions::Arc, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        // "Point" => self.gen_quad(Actions::Point, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        // "Circle" => self.gen_quad(Actions::Circle, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        // "Arc" => self.gen_quad(Actions::Arc, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "PenUp" => self.gen_quad(Actions::PenUp, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "PenDown" => self.gen_quad(Actions::PenDown, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "Color" => self.gen_quad(Actions::Color, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "Size" => self.gen_quad(Actions::Size, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         "Clear" => self.gen_quad(Actions::Clear, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        "BackgroundColor" => self.gen_quad(Actions::BackgroundColor, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        "FillColor" => self.gen_quad(Actions::FillColor, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        "StartFill" => self.gen_quad(Actions::StartFill, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
+                        "EndFill" => self.gen_quad(Actions::EndFill, None, None, Var { Location: func_name.clone(), Type: VarType::Void }),
                         _ => error!("Unknown special function {}", func_name.clone())
                     }
+                    self.gen_quad(Actions::EndFuncS, None, None, Var { Location: String::from(""), Type: VarType::Void })
                 }
             }
             _ => {}
@@ -942,12 +988,12 @@ impl MMCompiler {
                                 (VarType::Int, new_loc) 
                             }
                             "float" => { 
-                                let new_loc = BaseDirs::LocalInt as i32 + current_func.local_vars.1; 
+                                let new_loc = BaseDirs::LocalFloat as i32 + current_func.local_vars.1; 
                                 current_func.local_vars.1 += 1; 
                                 (VarType::Float, new_loc) 
                             }
                             "char" => { 
-                                let new_loc = BaseDirs::LocalInt as i32 + current_func.local_vars.2; 
+                                let new_loc = BaseDirs::LocalChar as i32 + current_func.local_vars.2; 
                                 current_func.local_vars.2 += 1; 
                                 (VarType::Char, new_loc) 
                             }
@@ -1000,7 +1046,8 @@ impl MMCompiler {
 
             // Get program ID
             let program_id = fields.next().unwrap();
-            debug!("Program ID: {:?}", program_id.as_str());
+            self.program_name = program_id.as_str().to_string();
+            info!("Program name: {}", program_id.as_str());
 
             // self.gen_quad(Actions::Era, None, None, Var { Location: "main".to_string(), Type: VarType::Void });
             self.gen_quad(Actions::Goto, None, None, Var{ Location: "".to_string(), Type: VarType::Void});
@@ -1048,11 +1095,14 @@ impl MMCompiler {
         let data = MMIParser::parse(Rule::file, &file).expect("unsuccessful parse").next().unwrap();
 
         self.process_rules(data.into_inner().next().unwrap().clone()).unwrap();
-        println!("{:?}", self.function_table);
     }
 
     pub fn write_obj_file(&self, file_name: &str) -> std::io::Result<()> {
-        let mut file = File::create("file.obj")?;
+        let mut file = File::create(file_name)?;
+
+        info!("Output file: {}", file_name);
+
+        writeln!(file, "P {}", self.program_name);
 
         // Write a &str in the file (ignoring the result).
         for constant in self.constants.iter() {
@@ -1080,27 +1130,6 @@ impl MMCompiler {
             };
         
             writeln!(file, "A {:?} {} {} {}", quad.op, lh, rh, quad.out_op.Location)?
-            // match quad.op {
-            //     Actions::Sum |
-            //     Actions::Sub |
-            //     Actions::Mult |
-            //     Actions::Div |
-            //     Actions::NotEqual |
-            //     Actions::Equal |
-            //     Actions::MoreThan |
-            //     Actions::LessThan |
-            //     Actions::And |
-            //     Actions::Or => {
-            //         writeln!(file, "{:?} {} {} {}", quad.op, quad.lh_op.unwrap().Location, quad.rh_op.unwrap().Location, quad.out_op.Location)
-            //     },
-            //     // Actions with 3 elements
-            //     Actions::Assign |
-            //     Actions::Param => {
-            //         writeln!(file, "{:?} {} {}", quad.op, quad.lh_op.unwrap().Location, quad.out_op.Location)
-            //     }
-            //     // Actions with 2 elements
-                
-            // }
         };
 
         Ok(())

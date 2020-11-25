@@ -1,0 +1,9 @@
+Program inputDouble;
+
+void module main() {
+    var int: a; {
+        write("Enter int number to double:");
+        read(a);
+        write(a * a);
+    }
+}

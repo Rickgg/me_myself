@@ -11,6 +11,7 @@ pest = "2.0"
 pest_derive = "2.0"
 env_logger = "0.8.1"
 log = "0.4"
+turtle = {git = "https://github.com/sunjay/turtle", rev = "bf64b8333a2be1914378d8a22a4788947711182b"}
 
 [[bin]]
 name = "me_myself"

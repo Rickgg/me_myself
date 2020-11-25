@@ -1,0 +1,39 @@
+Program circles;
+
+void module main() {
+    var float: D;
+    {
+        Size(2.0);
+        Color(255.0, 0.0, 0.0);
+        D = 0.0;
+        while (D <= 360.0) do {
+            Forward(1.0);
+            Left(1.0);
+            D = D + 1.0;
+        }
+        Color(0.0, 255.0, 0.0);
+        D = 0.0;
+        while (D <= 360.0) do {
+            Forward(1.0);
+            Right(1.0);
+            D = D + 1.0;
+        }
+        Color(0.0, 0.0, 255.0);
+        D = 0.0;
+        Left(90.0);
+        while (D <= 360.0) do {
+            Forward(1.0);
+            Left(1.0);
+            D = D + 1.0;
+        }
+
+        Color(255.0, 0.0, 255.0);
+        D = 0.0;
+        while (D <= 360.0) do {
+            Forward(1.0);
+            Right(1.0);
+            D = D + 1.0;
+        }
+        
+    }
+}

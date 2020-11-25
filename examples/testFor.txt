@@ -1,0 +1,9 @@
+Program ForTest;
+
+void module main() {
+    var int: A;
+    {
+        for (A = 0) to (20) do {
+            write(A);
+        }
+}}

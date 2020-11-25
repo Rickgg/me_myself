@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use log::{debug, error, log_enabled, info, Level};
 
 pub enum BaseDirs {
     // Base directions
@@ -35,6 +36,19 @@ pub enum VarValue {
     Char(String),
     Bool(bool)
 }
+
+use std::fmt;
+
+impl fmt::Display for VarValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            VarValue::Int(val) => write!(f, "{}", val),
+            VarValue::Float(val) => write!(f, "{}", val),
+            VarValue::Char(val) => write!(f, "{}", val),
+            VarValue::Bool(val) => write!(f, "{}", val)
+        }
+    }
+}   
 
 type VarMap = HashMap<i32, VarValue>;
 

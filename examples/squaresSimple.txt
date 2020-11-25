@@ -1,0 +1,12 @@
+Program Squares;
+
+void module main() {
+    var float: i;
+    {
+        i = 0;
+        while(i < 36.0) do {
+            write(i);
+            i = i + 1;
+        }
+    }
+}

@@ -1,0 +1,54 @@
+Program Dragon;
+var float: R, G, B, GenPos;
+
+
+void module wheel() {
+    var float: pos;
+    {
+        pos = 255 - GenPos;
+        if (pos < 85) then {
+            R = 255 - pos * 3;
+            G = 0;
+            B = pos * 3;
+            return();
+        } else {
+            if (pos < 170) then{
+                pos = pos - 85;
+                R = 0;
+                G = pos * 3;
+                B = 255 - pos * 3;
+                return();
+            } else {
+                pos = pos - 170;
+                R = pos * 3;
+                G = 255 - pos * 3;
+                B = 0;
+            }
+        }
+    }
+}
+
+void module dragon(float fold_direction, float num_folds) {
+    {
+        if (num_folds == 0.0) then {
+            GenPos = GenPos + 2.0;
+            if (GenPos > 255.0) then {
+                GenPos = 0.0;
+            }
+            wheel();
+            Color(R, G, B);
+            Forward(10.0);
+            return();
+        }
+        dragon(-90.0, num_folds - 1.0);
+        Right(fold_direction);
+        dragon(90.0, num_folds - 1.0);
+    }
+}
+
+void module main() {
+    {
+        BackgroundColor(0.0, 0.0, 0.0);
+        dragon(-90.0, 50.0);
+    }
+}

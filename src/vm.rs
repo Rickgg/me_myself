@@ -2,13 +2,14 @@ use std::fs::File;
 use std::io::{self, prelude::*, BufReader};
 use std::str::FromStr;
 use std::collections::HashMap;
-use std::error::Error;
+
+use turtle::Turtle;
 
 use log::{debug, error, log_enabled, info, Level};
 
 use crate::memory::{Memory, VarValue, BaseDirs};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Func {
     locals: (i32, i32, i32),
     temps: (i32, i32, i32, i32),
@@ -33,6 +34,7 @@ struct Quadruple {
 
 #[derive(Default, Debug)]
 pub struct VM {
+    prog_name: String,
     func_list: HashMap<String, Func>,
     curr_memory: Memory,
     global_memory: Memory,
@@ -41,16 +43,33 @@ pub struct VM {
     ip_stack: Vec<usize>,
     memory_stack: Vec<Memory>,
     constants: HashMap<i32, VarValue>,
-    param_pos: (i32, i32, i32)
 }
 
 impl VM {
     pub fn new() -> Self {
-        Default::default()
+        let mut new_vm: VM = Default::default();
+        new_vm.func_list.insert("Center".to_string(), Default::default());
+        new_vm.func_list.insert("Forward".to_string(), Func { locals: (0, 1, 0), ..Default::default() });
+        new_vm.func_list.insert("Backward".to_string(), Func { locals: (0, 1, 0), ..Default::default() });
+        new_vm.func_list.insert("Left".to_string(), Func { locals: (0, 1, 0), ..Default::default() });
+        new_vm.func_list.insert("Right".to_string(), Func { locals: (0, 1, 0), ..Default::default() });
+        new_vm.func_list.insert("PenUp".to_string(), Default::default());
+        new_vm.func_list.insert("PenDown".to_string(), Default::default());
+        new_vm.func_list.insert("Color".to_string(), Func { locals: (0, 3, 0), ..Default::default() });
+        new_vm.func_list.insert("Size".to_string(), Func { locals: (0, 1, 0), ..Default::default() });
+        new_vm.func_list.insert("Clear".to_string(), Default::default());
+        new_vm.func_list.insert("Position".to_string(), Func { locals: (0, 2, 0), ..Default::default() });
+        new_vm.func_list.insert("BackgroundColor".to_string(), Func { locals: (0, 3, 0), ..Default::default() });
+        new_vm.func_list.insert("StartFill".to_string(), Default::default());
+        new_vm.func_list.insert("EndFill".to_string(), Default::default());
+        new_vm.func_list.insert("FillColor".to_string(), Func { locals: (0, 3, 0), ..Default::default() });
+
+        new_vm
     }
 
-    pub fn load_file(&mut self) -> io::Result<()> {
-        let file = File::open("file.obj")?;
+    // read .obj file and create quadruples, globals, and function table
+    pub fn load_file(&mut self, file_name: &str) -> io::Result<()> {
+        let file = File::open(file_name)?;
         let lines = BufReader::new(file).lines();
 
         // Constants
@@ -58,6 +77,11 @@ impl VM {
             if let Ok(line) = line {
                 let mut info = line.split_whitespace();
                 match info.next().unwrap() {
+                    "P" => {
+                        let prog_name = info.next().unwrap();
+                        info!("Program {}", prog_name);
+                        self.prog_name = prog_name.to_string();
+                    }
                     "C" => {
                         let value = info.next().unwrap();
                         let location: i32 = info.next().unwrap().parse().unwrap();
@@ -95,6 +119,7 @@ impl VM {
                             "Sub" | 
                             "Mult" | 
                             "Div" | 
+                            "Mod" |
                             "MoreThan" | 
                             "LessThan" |
                             "LessOrEqualThan" |
@@ -103,7 +128,8 @@ impl VM {
                             "NotEqual" |
                             "And" |
                             "Or" |
-                            "Assign" | "Return" => {
+                            "Assign" | 
+                            "Return" => {
                                 let params: Vec<i32> = info.map(|s| i32::from_str(s).unwrap()).collect();
                                 let lh_op = Some(params[0]);
                                 let rh_op = Some(params[1]);
@@ -149,7 +175,7 @@ impl VM {
                                 };
                                 self.quad_list.push(new_quad);
                             }
-                            "Param" => {
+                            "Param" | "Read" => {
                                 let out_op = OutOp::Mem(info.nth(2).unwrap().parse::<i32>().unwrap());
                                 let new_quad = Quadruple {
                                     op: op.to_string(),
@@ -181,7 +207,23 @@ impl VM {
                                     self.quad_list.push(new_quad);
                                 }
                             }
-                            "EndFunc" => { // Special function because out is empty
+                            "EndFunc" | 
+                            "EndFuncS" |
+                            "Forward" |
+                            "Backward" |
+                            "Left" |
+                            "Right" |
+                            "Center" |
+                            "PenUp" |
+                            "PenDown" |
+                            "Color" |
+                            "Size" |
+                            "Clear" |
+                            "Position" |
+                            "BackgroundColor" |
+                            "StartFill" |
+                            "EndFill" |
+                            "FillColor" => { // Special function because out is empty
                                 let new_quad = Quadruple {
                                     op: op.to_string(),
                                     lh_op: None,
@@ -197,9 +239,7 @@ impl VM {
                 }
             }
         }
-
-        
-        debug!("{:?}", self);
+        // debug!("{:?}", self);
 
         Ok(())
     }
@@ -221,6 +261,7 @@ impl VM {
 
     fn set_val(&mut self, location: i32, new_val: VarValue) -> Result<(), String> {
         if location >= BaseDirs::GlobalInt as i32 && location < BaseDirs::GlobalUpperLim as i32 {
+            debug!("Setting {} to {:?}", location, new_val);
             self.global_memory.set_val(location, new_val).unwrap()
         } else if location >= BaseDirs::LocalInt as i32 && location < BaseDirs::TempUpperLim as i32 {
             self.curr_memory.set_val(location, new_val).unwrap()
@@ -229,14 +270,38 @@ impl VM {
         };
         Ok(())
     }
-
+    
+    // Returns the type of value that is saved at a certain memory location
+    fn get_mem_type(&self, location: i32) -> VarValue {
+        if location >= BaseDirs::GlobalInt as i32 && location < BaseDirs::GlobalFloat as i32 - 1 ||
+        location >= BaseDirs::LocalInt as i32 && location < BaseDirs::LocalFloat as i32 - 1 ||
+        location >= BaseDirs::TempInt as i32 && location < BaseDirs::TempFloat as i32 - 1 ||
+        location >= BaseDirs::CteInt as i32 && location < BaseDirs::CteFloat as i32 - 1 {
+            VarValue::Int(0)
+        } else if location >= BaseDirs::GlobalFloat as i32 && location < BaseDirs::GlobalChar as i32 - 1 ||
+        location >= BaseDirs::LocalFloat as i32 && location < BaseDirs::LocalChar as i32 - 1 ||
+        location >= BaseDirs::TempFloat as i32 && location < BaseDirs::TempChar as i32 - 1 ||
+        location >= BaseDirs::CteFloat as i32 && location < BaseDirs::CteChar as i32 - 1 {
+            VarValue::Float(0.0)
+        } else {
+            VarValue::Char("".to_string())
+        }
+    }
+    
     pub fn run(&mut self) {
+        let mut turtle = Turtle::new();
+        turtle.drawing_mut().set_title(self.prog_name.as_str());
+        // turtle.drawing_mut().set_size([400, 400]);
         let mut new_mem: Memory = Default::default();
+        let mut param_pos: (i32, i32, i32) = (0,0,0);
 
         // initialize main memory
 
         let func_data = self.func_list.get("main").unwrap();
         self.curr_memory.set_new_func(func_data.locals, func_data.temps);
+        new_mem.set_new_func(func_data.locals, func_data.temps);
+
+        debug!("Global mem: {:?}", self.global_memory);
 
         loop {
             let curr_quad: &Quadruple = self.quad_list.get(self.ip).unwrap();
@@ -271,19 +336,19 @@ impl VM {
                 "Param" => {
                     if let OutOp::Mem(param) = &curr_quad.out_op {
                         let param_val: VarValue = self.get_val(*param).unwrap();
-                        debug!("Param init, mem: {:?}", new_mem);
+                        // debug!("Param init, mem: {:?}, {:?}", new_mem, self.global_memory);
                         match param_val {
                             VarValue::Int(_) => {
-                                new_mem.set_val(BaseDirs::LocalInt as i32 + self.param_pos.0, param_val).unwrap();
-                                self.param_pos.0 += 1;
+                                new_mem.set_val(BaseDirs::LocalInt as i32 + param_pos.0, param_val).unwrap();
+                                param_pos.0 += 1;
                             }
                             VarValue::Float(_) => {
-                                new_mem.set_val(BaseDirs::LocalFloat as i32 + self.param_pos.1, param_val).unwrap();
-                                self.param_pos.1 += 1;
+                                new_mem.set_val(BaseDirs::LocalFloat as i32 + param_pos.1, param_val).unwrap();
+                                param_pos.1 += 1;
                             }
                             VarValue::Char(_) => {
-                                new_mem.set_val(BaseDirs::LocalChar as i32 + self.param_pos.2, param_val).unwrap();
-                                self.param_pos.2 += 1;
+                                new_mem.set_val(BaseDirs::LocalChar as i32 + param_pos.2, param_val).unwrap();
+                                param_pos.2 += 1;
                             }
                             _ => unreachable!()
                         }
@@ -302,6 +367,10 @@ impl VM {
                         unreachable!()
                     }
                 }
+                "EndFuncS" => {
+                    param_pos = (0,0,0);
+                    self.ip += 1;
+                }
                 "Gosub" => {
                     self.memory_stack.push(self.curr_memory.clone());
 
@@ -310,7 +379,7 @@ impl VM {
                         let func: &Func = self.func_list.get(func_name).unwrap();
                         self.ip_stack.push(self.ip.clone());
                         self.ip = func.start_loc;
-                        self.param_pos = (0,0,0);
+                        param_pos = (0,0,0);
 
                     } else {
                         unreachable!()
@@ -402,6 +471,25 @@ impl VM {
                         unreachable!()
                     }
                 }
+                "Mod" => {
+                    let lh = curr_quad.lh_op.unwrap();
+                    let lh_mem: VarValue = self.get_val(lh).unwrap();
+                    let rh = curr_quad.rh_op.unwrap();
+                    let rh_mem = self.get_val(rh).unwrap();
+                    if let OutOp::Mem(out_mem) = curr_quad.out_op {
+                        let out_val = match (lh_mem, rh_mem) {
+                            (VarValue::Int(val_l), VarValue::Int(val_r)) => VarValue::Int(val_l % val_r),
+                            (VarValue::Float(val_l), VarValue::Int(val_r)) => VarValue::Float(val_l % val_r as f64),
+                            (VarValue::Int(val_l), VarValue::Float(val_r)) => VarValue::Float(val_l as f64 % val_r),
+                            (VarValue::Float(val_l), VarValue::Float(val_r)) => VarValue::Float(val_l % val_r),
+                            _ => unreachable!()
+                        };
+                        self.set_val(out_mem, out_val).unwrap();
+                        self.ip += 1;
+                    } else {
+                        unreachable!()
+                    }
+                }
                 "MoreThan" => {
                     let lh = curr_quad.lh_op.unwrap();
                     let lh_mem: VarValue = self.get_val(lh).unwrap();
@@ -427,6 +515,7 @@ impl VM {
                     let rh = curr_quad.rh_op.unwrap();
                     let rh_mem = self.get_val(rh).unwrap();
                     if let OutOp::Mem(out_mem) = curr_quad.out_op {
+                        debug!("Less Than {:?} {:?}", lh_mem, rh_mem);
                         let out_val = match (lh_mem, rh_mem) {
                             (VarValue::Int(val_l), VarValue::Int(val_r)) => VarValue::Bool(val_l < val_r),
                             (VarValue::Float(val_l), VarValue::Int(val_r)) => VarValue::Bool(val_l < val_r as f64),
@@ -451,6 +540,7 @@ impl VM {
                             (VarValue::Float(val_l), VarValue::Int(val_r)) => VarValue::Bool(val_l == val_r as f64),
                             (VarValue::Int(val_l), VarValue::Float(val_r)) => VarValue::Bool((val_l as f64) == val_r),
                             (VarValue::Float(val_l), VarValue::Float(val_r)) => VarValue::Bool(val_l == val_r),
+                            (VarValue::Char(val_l), VarValue::Char(val_r)) => VarValue::Bool(val_l == val_r),
                             _ => unreachable!()
                         };
                         self.set_val(out_mem, out_val).unwrap();
@@ -470,6 +560,7 @@ impl VM {
                             (VarValue::Float(val_l), VarValue::Int(val_r)) => VarValue::Bool(val_l != val_r as f64),
                             (VarValue::Int(val_l), VarValue::Float(val_r)) => VarValue::Bool((val_l as f64) != val_r),
                             (VarValue::Float(val_l), VarValue::Float(val_r)) => VarValue::Bool(val_l != val_r),
+                            (VarValue::Char(val_l), VarValue::Char(val_r)) => VarValue::Bool(val_l != val_r),
                             _ => unreachable!()
                         };
                         self.set_val(out_mem, out_val).unwrap();
@@ -551,7 +642,7 @@ impl VM {
                 "Print" => {
                     if let OutOp::Mem(mem_loc) = curr_quad.out_op {
                         let mem_data = self.get_val(mem_loc).unwrap();
-                        println!("{:?}", mem_data);
+                        println!("{}", mem_data);
                     } else if let OutOp::Str(letrero) = &curr_quad.out_op {
                         println!("{}", letrero);
                     } else {
@@ -559,15 +650,183 @@ impl VM {
                     }
                     self.ip += 1;
                 }
-                "Assign" => {
-                    let lh = curr_quad.lh_op.unwrap();
-                    let lh_mem: VarValue = self.get_val(lh).unwrap();
-                    if let OutOp::Mem(out_mem) = curr_quad.out_op {
-                        self.set_val(out_mem, lh_mem).unwrap();
+                "Read" => {
+                    if let OutOp::Mem(mem_loc) = curr_quad.out_op {
+                        let mut input = String::new();
+                        match io::stdin().read_line(&mut input) {
+                            Ok(n) => {
+                                match self.get_mem_type(mem_loc) {
+                                    VarValue::Int(_) => { 
+                                        match input.trim().parse::<i32>() {
+                                            Ok(val) => { self.set_val(mem_loc, VarValue::Int(val)).unwrap() },
+                                            Err(err) => panic!("Value cannot be parsed into int {}", input)
+                                        }
+                                    }
+                                    VarValue::Float(_) => { 
+                                        match input.trim().parse::<f64>() {
+                                            Ok(val) => { self.set_val(mem_loc, VarValue::Float(val)).unwrap() },
+                                            Err(err) => panic!("Value cannot be parsed into float {}.", input)
+                                        }
+                                        
+                                    }
+                                    VarValue::Char(_) => {
+                                        if input.trim().len() == 1 {
+                                            self.set_val(mem_loc, VarValue::Char(input)).unwrap();
+                                        } else {
+                                            panic!("Char must be single character");
+                                        }
+                                    }
+                                    _ => { unreachable!() }
+                                }
+                            }
+                            Err(error) => println!("error: {}", error),
+                        }
                         self.ip += 1;
                     } else {
                         unreachable!()
                     }
+                }
+                "Assign" => {
+                    let lh = curr_quad.lh_op.unwrap();
+                    let lh_mem: VarValue = self.get_val(lh).unwrap();
+                    if let OutOp::Mem(out_mem) = curr_quad.out_op {
+                        match (self.get_mem_type(out_mem), lh_mem.clone()) {
+                            (VarValue::Int(_), VarValue::Int(_)) => self.set_val(out_mem, lh_mem).unwrap(),
+                            (VarValue::Int(_), VarValue::Float(val)) => self.set_val(out_mem, VarValue::Int(val as i32)).unwrap(),
+                            (VarValue::Float(_), VarValue::Int(val)) => self.set_val(out_mem, VarValue::Float(val as f64)).unwrap(),
+                            (VarValue::Float(_), VarValue::Float(_)) => self.set_val(out_mem, lh_mem).unwrap(),
+                            (VarValue::Char(_), VarValue::Int(val)) => self.set_val(out_mem, VarValue::Char(val.to_string())).unwrap(),
+                            (VarValue::Char(_), VarValue::Float(val)) => self.set_val(out_mem, VarValue::Char(val.to_string())).unwrap(),
+                            (VarValue::Char(_), VarValue::Char(_)) => self.set_val(out_mem, lh_mem).unwrap(),
+                            _=> unimplemented!("WHAT DID YOU DO?!?!")
+
+                        }
+                        self.ip += 1;
+                    } else {
+                        unreachable!()
+                    }
+                }
+                "Center" => {
+                    debug!("Param center");
+                    turtle.home();
+                    self.ip += 1;
+                }
+                "Forward" => {
+                    if let VarValue::Float(distance) = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap() {
+                        debug!("Param forward {:?}", distance);
+                        turtle.forward(distance);
+                        self.ip += 1;
+                    } else {
+                        unreachable!("Value must be float")
+                    }
+                }
+                "Backward" => {
+                    if let VarValue::Float(distance) = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap() {
+                        debug!("Param backward {}", distance);
+                        turtle.backward(distance);
+                        self.ip += 1;
+                    } else {
+                        unreachable!("Value must be float")
+                    }
+                }
+                "Left" => {
+                    if let VarValue::Float(angle) = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap() {
+                        debug!("Param left {:?}", angle);
+                        turtle.left(angle);
+                        self.ip += 1;
+                    } else {
+                        unreachable!("Value must be float")
+                    }
+                }
+                "Right" => {
+                    if let VarValue::Float(angle) = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap() {
+                        debug!("Param right {}", angle);
+                        turtle.right(angle);
+                        self.ip += 1;
+                    } else {
+                        unreachable!("Value must be float")
+                    }
+                }
+                "PenUp" => {
+                    debug!("Param penup");
+                    turtle.pen_up();
+                    self.ip += 1;
+                }
+                "PenDown" => {
+                    debug!("Param pendown");
+                    turtle.pen_down();
+                    self.ip += 1;
+                }
+                "Clear" => {
+                    debug!("Param clear");
+                    turtle.reset();
+                    self.ip += 1;
+                }
+                "Size" => {
+                    if let VarValue::Float(size) = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap() {
+                        debug!("Param size {}", size);
+                        turtle.set_pen_size(size);
+                        self.ip += 1;
+                    } else {
+                        unreachable!("Value must be float")
+                    }
+                }
+                "Position" => {
+                    let x = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
+                    let y = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    match (x, y) {
+                        (VarValue::Float(x), VarValue::Float(y)) => {
+                            turtle.go_to([x, y]);
+                            self.ip += 1;
+                        }
+                        _=> { unreachable!("RGB must be floats")}
+                    }
+                }
+                "Color" => {
+                    let red = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
+                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
+                    match (red, blue, green) {
+                        (VarValue::Float(red), VarValue::Float(blue), VarValue::Float(green)) => {
+                            turtle.set_pen_color(turtle::Color::rgb(red, green, blue));
+                            self.ip += 1;
+                        }
+                        _=> { unreachable!("RGB must be floats")}
+                    }
+                }
+                "BackgroundColor" => {
+                    let red = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
+                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
+                    match (red, blue, green) {
+                        (VarValue::Float(red), VarValue::Float(blue), VarValue::Float(green)) => {
+                            turtle.drawing_mut().set_background_color(turtle::Color::rgb(red, green, blue));
+                            self.ip += 1;
+                        }
+                        _=> { unreachable!("RGB must be floats")}
+                    }
+                }
+                "FillColor" => {
+                    let red = new_mem.get_val(BaseDirs::LocalFloat as i32).unwrap();
+                    let blue = new_mem.get_val(BaseDirs::LocalFloat as i32 + 1).unwrap();
+                    let green = new_mem.get_val(BaseDirs::LocalFloat as i32 + 2).unwrap();
+
+                    debug!("Setting fill color {:?} {:?} {:?}", red, blue, green);
+                    match (red, blue, green) {
+                        (VarValue::Float(red), VarValue::Float(blue), VarValue::Float(green)) => {
+                            turtle.set_fill_color(turtle::Color::rgb(red, green, blue));
+                            self.ip += 1;
+                        }
+                        _=> { unreachable!("RGB must be floats")}
+                    }
+                }
+                "StartFill" => {
+                    turtle.begin_fill();
+                    self.ip += 1;
+                }
+                "EndFill" => {
+                    turtle.end_fill();
+                    self.ip += 1;
                 }
                 "EndFunc" => {
                     if self.ip_stack.is_empty() {
@@ -577,11 +836,11 @@ impl VM {
                         let last_ip = self.ip_stack.pop().unwrap();
                         let last_mem = self.memory_stack.pop().unwrap();
 
-                        debug!("{:?}", self.curr_memory);
+                        debug!("Before mem {:?}", self.curr_memory);
 
                         self.ip = last_ip + 1;
                         self.curr_memory = last_mem.clone();
-                        debug!("{:?}", self.curr_memory);
+                        debug!("after mem {:?}", self.curr_memory);
                     }
                 }
                 &_ => {

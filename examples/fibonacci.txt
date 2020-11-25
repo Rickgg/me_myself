@@ -1,0 +1,52 @@
+Program var_test;
+
+int module fibRecursivo(int n) {
+    var int: A, B;
+    {
+        if (n <= 1) then {
+            return(n);
+        } else {
+            return(fibRecursivo(n - 1) + fibRecursivo(n - 2));
+        }
+    }
+}
+
+int module fibIterativo(int n) {
+    var int: actual, ant1, ant2, k; 
+    {
+        ant1 = 1;
+        ant2 = 1;
+        if (n == 1 | n == 2) then {
+            actual = 1;
+        } else {
+            if (n == 0) then {
+                actual = 0;
+            }
+        }
+        for (k = 3) to (n + 1) do {
+            actual = ant1 + ant2;
+            ant2 = ant1;
+            ant1 = actual;
+        }
+        return(actual);
+    }
+}
+
+void module main() {
+    var int: x, num; 
+    {
+        write("Escribe como quieres calcular el Fibonacci:"); 
+        write("Fibonacci Iterativo : 1");
+        write("Fibonacci Recursivo : 2");
+        read(x);
+
+        write("Que numero deseas calcular?"); 
+        read(num);
+
+        if(x == 1) then { 
+            write(fibIterativo(num));
+        } else { 
+            write(fibRecursivo(num));
+        }
+    }
+}

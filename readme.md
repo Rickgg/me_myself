@@ -1,138 +1,212 @@
 # Me Myself And I
 
-## Ricardo Garza Gerhard - A00816705
+## Ricardo Garza Gerhard - A00816705
 
 ### Proyecto de compilador
 
-El compilador está escrito en Rust, usa la librería [Pest](https://github.com/pest-parser/pest) para parsear el lenguaje. En el archivo main se define una función para procesar un archivo de texto "memyselfandi.txt", que es un programa de prueba sencillo.
+El compilador está escrito en Rust, usa la librería [Pest](https://github.com/pest-parser/pest) para parsear el lenguaje. En el archivo main se define una función para procesar un archivo de texto con el programa.
 
-### Compilación
+### Compilación del ejecutable
 
-Para usarse se necesita tener instalado [Rust](https://rustup.rs/), se usa `cargo build` para generar el programa, que termina en `target/debug/memyselfandi`. Para correrlo, sólo se tiene que llamar en la terminal `./memyselfandi`. El archivo con el programa debe estar a la misma altura.
+Para usarse se necesita tener instalado [Rust](https://rustup.rs/), se usa `cargo build` para generar el programa, que termina en `target/debug/me_myself`. Para correrlo, sólo se tiene que llamar en la terminal `./me_myself`.
 
-#### Comentarios extras
+#### Comentarios extras sobre la compilación
 
 - Los comentarios se cierran con %%, por problemas con el parser por el newline
 - Los comentarios se pueden escribir en casi cualquier parte del programa
 
-### Tabla de funciones y variables
+### Uso del ejecutable
 
-Ya se implementan las tablas de funciones y variables. Se usan estructuras y enumeraciones de Rust para manejar todos estos datos. Cuando se corre el programa, la tabla se imprime a la linea de comandos, como `{"main": Func { name: "var_test", ret_type: Void, var_table: [Var { name: "id1", type: "int", value: "" }, Var { name: "id2", type: "int", value: "" }, Var { name: "d3", type: "float", value: "" }] }, "fact": Func { name: "fact", ret_type: Int, var_table: [Var { name: "id1", type: "int", value: "" }, Var { name: "id2", type: "int", value: "" }, Var { name: "d3", type: "float", value: "" }] }}`
+Para usar el ejecutable, el archivo del lenguaje debe estar en un `.txt`. Primero se debe compilar el programa usando el comando:
 
-### Cuadruplos y condiciones
-
-Se crean los cuadruplos para las operaciones matemáticas, booleanas, escritura, lectura, y condiciones. Los cuadruplos usan registros falsos, con texto manejando los espacios de variables temporales.
-
-Se crean los cuadruplos para funciones no-condicionales (fors)
-
-### Cuadruplos para funciones
-
-Se crean todos los cuadruplos para llamadas de funciones. Está pendiente la verificación completa de tipos semánticos, así como datos extras de funciones (parametros, verificacion de tipos de retorno, etc).
-
-Programa ejemplo:
-
-```
-Program var_test;
-var int: id1, id2;
-float: d3;
-
-int module fact (a);
-    var int: A, B, C;
-    float: d3, D, F, G;
-    {
-        for (A = B + 1) to (C + 3) do {
-            read(A, C);
-            write("A");
-        }
-        D = F + G;
-    }
+```shell
+./me_myself compile <input_file> <output_file>
 ```
 
-Código generado:
+Si no se especifica el nombre del archivo de salida, se escribe en el archivo `file.obj`.
 
-```
-Program ID: "var_test"
-Processing function fact
-{"global": Func { name: "var_test", ret_type: Void, var_table: {"id2": Var { Type: Int, Name: "id2" }, "d3": Var { Type: Float, Name: "d3" }, "id1": Var { Type: Int, Name: "id1" }} }, "fact": Func { name: "fact", ret_type: Int, var_table: {"C": Var { Type: Int, Name: "C" }, "D": Var { Type: Float, Name: "D" }, "F": Var { Type: Float, Name: "F" }, "G": Var { Type: Float, Name: "G" }, "A": Var { Type: Int, Name: "A" }, "B": Var { Type: Int, Name: "B" }, "d3": Var { Type: Float, Name: "d3" }} }}
-0 Sum Some(Var { Type: Int, Name: "1" }) Some(Var { Type: Int, Name: "B" }) Var { Type: Int, Name: "t0" }
-1 Assign Some(Var { Type: Int, Name: "t0" }) None Var { Type: Int, Name: "A" }
-2 Assign Some(Var { Type: Int, Name: "A" }) None Var { Type: Int, Name: "VC" }
-3 Sum Some(Var { Type: Int, Name: "3" }) Some(Var { Type: Int, Name: "C" }) Var { Type: Int, Name: "t0" }
-4 Assign Some(Var { Type: Int, Name: "t0" }) None Var { Type: Int, Name: "VF" }
-5 LessThan Some(Var { Type: Int, Name: "VC" }) Some(Var { Type: Int, Name: "VF" }) Var { Type: Int, Name: "t0" }
-6 GotoF None None Var { Type: Int, Name: "13" }
-7 Read None None Var { Type: Int, Name: "A" }
-8 Read None None Var { Type: Int, Name: "C" }
-9 Print None None Var { Type: Int, Name: "\"A\"" }
-10 Sum Some(Var { Type: Int, Name: "VF" }) Some(Var { Type: Int, Name: "1" }) Var { Type: Int, Name: "VC" }
-11 Assign Some(Var { Type: Int, Name: "VC" }) None Var { Type: Int, Name: "A" }
-12 Goto None None Var { Type: Int, Name: "5" }
-13 Sum Some(Var { Type: Float, Name: "G" }) Some(Var { Type: Float, Name: "F" }) Var { Type: Float, Name: "t0" }
-14 Assign Some(Var { Type: Float, Name: "t0" }) None Var { Type: Float, Name: "D" }
+Una vez que se tenga el archivo `.obj`, el programa se corre usando el comando:
+
+```shell
+./me_myself run <input_file>
 ```
 
-### Mapa de Memoria de ejecución
+Si no se especifica el nombre del archivo de entrada, se lee el archivo `file.obj`.
 
-El sistema genera el código .obj después de procesar el lenguaje. El archivo queda de la forma:
+### Ejemplos
+
+En la carpeta de examples se encuentran distintos programas para demostrar el uso del lenguaje. Para correr cualqueir ejemplo se tiene que compilar y correr como cualquier programa de MeMyself:
+
+```shell
+./me_myself compile examples/dragon.txt dragon.obj && ./me_myself run dragon.obj
 ```
-C 0 30000 Int
-C 13 30001 Int
-C 1 30002 Int
-G 1 1 0
-F main 2 4 0 0 1 0 0 1
-A Era -1 -1 main
-A Goto -1 -1 2
-A Assign 30000 -1 10001
-A Assign 30001 -1 10002
-A LessThan 10001 10002 23000
-A GotoF 23000 -1 10
-A Print -1 -1 10001
-A Sum 10001 30002 20000
-A Assign 20000 -1 10001
-A Goto -1 -1 4
-A EndFunc -1 -1 
+
+## Lenguaje
+
+### Nombre programa
+
+En la primer línea debe ir el nombre del programa:
+
 ```
-La primer letra indica el tipo de dato que se va a procesar:
-* C: Constante, valor, posición, tipo de variable
-* G: Global, conteo ints, conteo floats, conteo chars
-* F: función, cuadruplo inicial, local ints, local floats, local chars, temp ints, temps floats, temp chars, temp bools
-* A: cuádruplo, acción, operador izquierdo, operador derecho, operador final
-
-En la generación del código para la máquina virtual se procesa el tipo de dato que se va a accesar, dependiendo de la acción. Ya funcionan todos los códigos de operación, menos la llamada de funciones y el for.
-
-Código ejemplo:
+Program testProgram;
 ```
-Program var_test;
-var int: H;
-float: G;
 
-void module main (int F) {
-    var int: A, B, C;
-    {
-        A = 0;
-        B = 13;
-        while (A < B) do {
-            write(A);
-            A = A + 1;
-        }
+### Variables globales
+
+A continuación se declaran las variables globales, las cuales pueden ser int, float o char:
+
+```
+Program testProgram;
+var int: var1, var2; float: var3, var4; char: var5, var6;
+```
+
+### Comentarios
+
+Los comentarios son opcionales, y se denota el inicio y final de estos con el `%%`:
+
+```
+%% Este es un comentario de MeMyself %%
+```
+
+### Operaciones aritméticas
+
+Las operaciones aritméticas permitidas en MeMyself son:
+|Operador|Descripción |
+|--------|------------|
+|+ |Suma |
+|- |Resta |
+|\* |Multiplicación|
+|/ |División |
+|% |Módulo |
+
+Estas operaciones se pueden hacer entre ints y floats
+
+### Operaciones booleanas
+
+Las operaciones booleanas permitidas en MeMyself son:
+|Operador|Descripción |
+|--------|------------|
+| < |Menor que|
+| > | Mayor que|
+| <=|Menor o igual que|
+| >=|Mayor o igual que|
+|==|Igual a|
+|<>|Diferente a|
+|&|And
+|\||Or
+
+Estas operaciones están permitidas entre:
+
+- Int e int
+- Int y float
+- Float y float
+- Char y Char
+
+### Condicionales
+
+En MyMyself hay 3 tipos de condicionales:
+
+- if..else
+- for
+- while
+
+```
+%% Uso de if %%
+if (A <> B) then {
+
+} else {
+
+}
+
+%% Uso de for %%
+for (A = 0) to (120) do {
+
+}
+%% El for aumenta de uno en uno, mientras el operando del lado izquierdo sea menor que el operando del lado derecho %%
+
+%% Uso de while %%
+while (A < 10) do {
+
+}
+%% NOTA: el whilke no cambia el valor de la variable a comparar, queda a discreción del programador cambiar dicha variable %%
+```
+
+### Escritura
+
+MeMyself permite la escritura de datos a la consola:
+
+```
+var int: A;
+write(A, "Hello World");
+```
+
+### Lectura
+
+MeMyself permite la lectura de datos para ser asignados a variables:
+
+```
+var int: A;
+read(A);
+```
+
+### Funciones
+
+La declaración de funciones se hace empezando en el tipo de retorno de la función, el cual puede ser `int`, `float`, `char`, o `void`, seguido de la palabra `module`, el nombre de la función, y los parámetros, si se necesitan. Después se declaran las variables locales a la función, y luego los estatutos.
+
+- Todo programa debe contar con una función `main` de tipo de retorno `void`, y sin parámetros de entrada, o no compilará el programa.
+
+Un ejemplo sería:
+
+```
+int module helloWorld() {
+    var char: c; {
+        write("Hello World!");
+        return(0);
     }
 }
 ```
 
-Salida  de máquina virtual:
+Para la declaración de retornos en funciones que retornen algún tipo de resultado, se puede agregar el valor de retorno entre los paréntesis:
+`return (return_value);`
+
+## Ejemplo completo
+
+Un programa ejemplo completo sería:
+
 ```
-Int(0)
-Int(1)
-Int(2)
-Int(3)
-Int(4)
-Int(5)
-Int(6)
-Int(7)
-Int(8)
-Int(9)
-Int(10)
-Int(11)
-Int(12)
-Memory { global: {5000: Int(0), 6000: Float(0.0)}, local: {10000: Int(0), 10001: Int(13), 10003: Int(0), 10002: Int(13)}, temp: {20000: Int(13), 23000: Bool(false)}, cte: {30001: Int(13), 30000: Int(0), 30002: Int(1)}, local_stack: [], temp_stack: [] }
+Program example;
+var int: hello;
+
+void module main() {
+    var float: test; {
+        read(test);
+        if (test == 100.0) {
+            hello = 200;
+        } else {
+            hello = 100;
+        }
+        test = test * hello;
+        write(test);
+    }
+}
 ```
+
+## Funciones de tortuga
+
+MeMyself es un lenguaje gráfico, por lo que incluye la ya tan conocida "Tortuga" como una salida gráfica. La lista de comandos disponibles para manipular la tortuga son los siguientes:
+
+- `Center()`: regresa la tortuga al centro de la pantalla
+- `Forward(float value)`: avanza la tortuga la cantidad de pasos
+- `Backward(float value)`: regresa la tortuga la cantidad de pasos
+- `Left(float angle)`: mueve la tortuga a la izquierda por cierto ángulo. Valores aceptados: 0-360
+- `Right(float angle)`: mueve la tortuga a la derecha por cierto ángulo. Valores aceptados: 0-360
+- `PenUp()`: levanta la pluma de la tortuga. Deja de pintar si se mueve
+- `PenDown()`: baja la pluma de la tortuga. Empieza a pintar si se mueve
+- `Color(float Red, float Green, float Blue)`: cambia el color de la pluma de la tortuga.
+- `Size(float)`: cambia el tamaño de la pluma de la tortuga
+- `Clear()`: limpia la pantalla de los dibujos
+- `Position(float x, float y)`: mueve la tortuga a la posición `x, y`en la pantalla
+- `BackgroundColor(float Red, float Green, float Blue)`: cambia el color de fondo de la pantalla
+- `FillColor(float Red, float Green, float Blue)`: cambia el color del relleno que se hace en los dibujos.
+- `StartFill()`: empieza el relleno del dibujo que se está haciendo. Se tiene que llamar `EndFill()` para empezar otro relleno.
+- `EndFill()`: termina el relleno del dibujo que se está haciendo. Se tiene que llamar `StartFill()` antes.

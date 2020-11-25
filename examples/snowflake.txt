@@ -1,0 +1,33 @@
+Program Snowflake;
+
+void module fractal(float length, float depth) {
+    {
+        if (depth == 0) then {
+            Forward(length);
+        } else {
+            fractal(length / 3.0, depth - 1);
+            Right(60.0);
+            fractal(length / 3.0, depth - 1);
+            Left(120.0);
+            fractal(length / 3.0, depth - 1);
+            Right(60.0);
+            fractal(length / 3.0, depth - 1);
+        }
+    }
+}
+
+void module main() {
+    {
+        BackgroundColor(41.0, 182.0, 246.0);
+        Color(178.0, 235.0, 242.0); 
+        PenUp();
+        Backward(200.0);
+        Right(30.0);
+        PenDown();
+        fractal(350.0, 3.0);
+        Left(120.0);
+        fractal(350.0, 3.0);
+        Left(120.0);
+        fractal(350.0, 3.0);
+    }
+}

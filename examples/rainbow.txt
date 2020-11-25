@@ -1,0 +1,50 @@
+Program Rainbow;
+var float: R, G, B, GenPos;
+
+%% Adaptado del código de Adafruit %%
+
+void module wheel() {
+    var float: pos;
+    {
+        pos = 255 - GenPos;
+        if (pos < 85) then {
+            R = 255 - pos * 3;
+            G = 0;
+            B = pos * 3;
+            return();
+        } else {
+            if (pos < 170) then{
+                pos = pos - 85;
+                R = 0;
+                G = pos * 3;
+                B = 255 - pos * 3;
+                return();
+            } else {
+                pos = pos - 170;
+                R = pos * 3;
+                G = 255 - pos * 3;
+                B = 0;
+            }
+        }
+    }
+}
+
+void module main() {
+    var float: i;
+    {
+        BackgroundColor(0.0, 0.0, 0.0);
+        i = 0.0;
+        GenPos = 0.0;
+        while (i < 290.0) do {
+            GenPos = GenPos + 1.0;
+            if (GenPos > 255.0) then {
+                GenPos = 0.0;
+            }
+            Forward(i);
+            Right(60.0);
+            i = i + 1;
+            wheel();
+            Color(R, G, B);
+        }
+    }
+}

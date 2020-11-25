@@ -1,0 +1,19 @@
+Program Dragon;
+
+void module dragon(float fold_direction, float num_folds) {
+    {
+        if (num_folds == 0.0) then {
+            Forward(10.0);
+            return();
+        }
+        dragon(-90.0, num_folds - 1.0);
+        Right(fold_direction);
+        dragon(90.0, num_folds - 1.0);
+    }
+}
+
+void module main() {
+    {
+        dragon(-90.0, 50.0);
+    }
+}

@@ -1,0 +1,41 @@
+Program Factorial;
+
+int module factIterativo(int f) {
+    var int: a, b; 
+    {
+        a = 1;
+        for (b = 1) to (f + 1) do {
+            a = a * b;
+        }
+        return (a); 
+    }
+}
+
+int module factRecursivo(int n) {
+    var int: A, B; {
+        if (n == 1) then {
+            return(1);
+        } else {
+            return(n * (factRecursivo(n - 1)));
+        }
+    }
+}
+
+void module main() {
+    var int: x, num; 
+    {
+        write("Escribe como quieres hacer el factorial:"); 
+        write("Factorial Iterativo : 1");
+        write("Factorial Recursivo : 2");
+        read(x);
+
+        write("Que numero deseas calcular?"); 
+        read(num);
+
+        if(x == 1) then { 
+            write(factIterativo(num));
+        } else { 
+            write(factRecursivo(num));
+        }
+    }
+}
